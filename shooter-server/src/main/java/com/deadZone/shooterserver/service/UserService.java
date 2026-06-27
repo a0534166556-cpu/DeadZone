@@ -10,6 +10,7 @@ import com.deadZone.shooterserver.model.User;
 import com.deadZone.shooterserver.repository.UserRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +34,7 @@ public class UserService {
     private final EmailVerificationService emailVerificationService;
     private final ObjectMapper objectMapper;
     private final StoreCatalog storeCatalog;
+    private final boolean emailVerificationEnabled;
 
     public UserService(
             UserRepository userRepository,
@@ -40,7 +42,8 @@ public class UserService {
             JwtService jwtService,
             EmailVerificationService emailVerificationService,
             ObjectMapper objectMapper,
-            StoreCatalog storeCatalog
+            StoreCatalog storeCatalog,
+            @Value("${deadzone.email.verification-enabled:false}") boolean emailVerificationEnabled
     ) {
         this.userRepository = userRepository;
         this.passwordService = passwordService;
@@ -48,6 +51,7 @@ public class UserService {
         this.emailVerificationService = emailVerificationService;
         this.objectMapper = objectMapper;
         this.storeCatalog = storeCatalog;
+        this.emailVerificationEnabled = emailVerificationEnabled;
     }
 
     @Transactional
@@ -59,8 +63,7 @@ public class UserService {
         if (existingUser.isPresent() && !existingUser.get().isEmailVerified() && email.equalsIgnoreCase(existingUser.get().getEmail())) {
             User user = existingUser.get();
             user.setPassword(passwordService.hash(request.password()));
-            boolean verificationEmailSent = emailVerificationService.sendVerification(user);
-            return new AuthResponse(null, UserResponse.from(userRepository.save(user)), verificationEmailSent);
+            return registerResponse(userRepository.save(user));
         }
         if (existingUser.isPresent()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Username is already taken!");
@@ -68,8 +71,7 @@ public class UserService {
 
         User user = new User(username, email, passwordService.hash(request.password()));
         user = userRepository.save(user);
-        boolean verificationEmailSent = emailVerificationService.sendVerification(user);
-        return new AuthResponse(null, UserResponse.from(user), verificationEmailSent);
+        return registerResponse(user);
     }
 
     public AuthResponse login(LoginRequest request) {
@@ -79,6 +81,9 @@ public class UserService {
 
         if (!passwordService.matches(request.password(), user.getPassword())) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid username or password!");
+        }
+        if (!emailVerificationEnabled && !user.isEmailVerified()) {
+            markEmailVerified(user);
         }
         if (!user.isEmailVerified()) {
             emailVerificationService.sendVerification(user);
@@ -302,6 +307,23 @@ public class UserService {
 
     private AuthResponse authResponse(User user) {
         return new AuthResponse(jwtService.createToken(user.getId(), user.getUsername()), UserResponse.from(user), false);
+    }
+
+    private AuthResponse registerResponse(User user) {
+        if (!emailVerificationEnabled) {
+            markEmailVerified(user);
+            return authResponse(user);
+        }
+        boolean verificationEmailSent = emailVerificationService.sendVerification(user);
+        return new AuthResponse(null, UserResponse.from(user), verificationEmailSent);
+    }
+
+    private void markEmailVerified(User user) {
+        user.setEmailVerified(true);
+        if (user.getEmailVerifiedAt() == null) {
+            user.setEmailVerifiedAt(Instant.now());
+        }
+        userRepository.save(user);
     }
 
     private void upgradePasswordHashIfNeeded(User user, String password) {

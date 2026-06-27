@@ -34,16 +34,17 @@ class UserServiceTests {
     }
 
     @Test
-    void registerHashesPasswordAndReturnsPublicUser() {
+    void registerHashesPasswordAndReturnsAuthenticatedUser() {
         var response = userService.register(new RegisterRequest("player-one", "one@example.com", "secret"));
         User storedUser = userRepository.findByUsername("player-one").orElseThrow();
 
         assertThat(response.user().username()).isEqualTo("player-one");
         assertThat(response.user().email()).isEqualTo("one@example.com");
-        assertThat(response.user().emailVerified()).isFalse();
-        assertThat(response.token()).isNull();
+        assertThat(response.user().emailVerified()).isTrue();
+        assertThat(response.token()).isNotBlank();
         assertThat(storedUser.getPassword()).isNotEqualTo("secret");
-        assertThat(emailVerificationTokenRepository.count()).isEqualTo(1);
+        assertThat(storedUser.isEmailVerified()).isTrue();
+        assertThat(emailVerificationTokenRepository.count()).isZero();
     }
 
     @Test
@@ -92,14 +93,20 @@ class UserServiceTests {
     }
 
     @Test
-    void unverifiedUserCanRequestANewCodeByRegisteringAgain() {
+    void unverifiedUserIsVerifiedWhenRegisteringAgain() {
         userService.register(new RegisterRequest("pending-player", "pending@example.com", "old"));
+        User pending = userRepository.findByUsername("pending-player").orElseThrow();
+        pending.setEmailVerified(false);
+        pending.setEmailVerifiedAt(null);
+        userRepository.save(pending);
+
         var response = userService.register(new RegisterRequest("pending-player", "pending@example.com", "new"));
 
         assertThat(response.user().username()).isEqualTo("pending-player");
-        assertThat(response.user().emailVerified()).isFalse();
+        assertThat(response.user().emailVerified()).isTrue();
+        assertThat(response.token()).isNotBlank();
         assertThat(userRepository.count()).isEqualTo(1);
-        assertThat(emailVerificationTokenRepository.count()).isEqualTo(1);
+        assertThat(emailVerificationTokenRepository.count()).isZero();
     }
 
     @Test
