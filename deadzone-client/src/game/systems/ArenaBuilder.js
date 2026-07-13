@@ -17,10 +17,8 @@ export class ArenaBuilder {
 
   build(blocks) {
     this.addLighting();
-    if (this.selectedMap.theme !== 'apocalyptic') {
-      this.addGround();
-      this.addWalls();
-    }
+    this.addGround();
+    this.addWalls();
     this.addMapModel();
     this.addBlocks(blocks);
     this.addThemeDetails(blocks);
@@ -118,6 +116,10 @@ export class ArenaBuilder {
   }
 
   addBlockDetail(block) {
+    if (this.selectedMap.theme === 'apocalyptic') {
+      this.addApocalypticBlockDetail(block);
+    }
+
     if (this.selectedMap.theme === 'foundry') {
       this.addFoundryBlockDetail(block);
     }
@@ -286,6 +288,84 @@ export class ArenaBuilder {
     this.scene.add(cap, ...trims);
   }
 
+  addApocalypticBlockDetail(block) {
+    const rust = new THREE.MeshStandardMaterial({ color: '#8a4f2a', roughness: 0.86, metalness: 0.18 });
+    const darkGlass = new THREE.MeshBasicMaterial({ color: '#0b121c', transparent: true, opacity: 0.68 });
+    const ashLine = new THREE.MeshBasicMaterial({ color: '#d0d6df', transparent: true, opacity: 0.2 });
+    const hazard = new THREE.MeshBasicMaterial({ color: '#ff9f43' });
+
+    if (block.kind === 'city-building') {
+      const topY = block.y + block.h / 2 + 0.04;
+      const floors = Math.min(5, Math.max(2, Math.floor(block.h / 3)));
+      for (let floor = 1; floor <= floors; floor += 1) {
+        const y = block.y - block.h / 2 + (block.h / (floors + 1)) * floor;
+        [-1, 1].forEach((side) => {
+          const strip = new THREE.Mesh(
+            new THREE.BoxGeometry(block.w * 0.72, 0.12, 0.07),
+            darkGlass,
+          );
+          strip.position.set(block.x, y, block.z + side * (block.d / 2 + 0.045));
+          this.scene.add(strip);
+        });
+      }
+
+      const brokenRoof = new THREE.Mesh(
+        new THREE.BoxGeometry(block.w * 0.58, 0.16, block.d * 0.28),
+        rust,
+      );
+      brokenRoof.position.set(block.x - block.w * 0.12, topY, block.z + block.d * 0.16);
+      brokenRoof.rotation.y = 0.18;
+      this.scene.add(brokenRoof);
+      return;
+    }
+
+    if (block.kind === 'city-boundary') {
+      const isWideX = block.w > block.d;
+      const line = new THREE.Mesh(
+        new THREE.BoxGeometry(isWideX ? block.w * 0.92 : 0.08, 0.12, isWideX ? 0.08 : block.d * 0.92),
+        hazard,
+      );
+      line.position.set(block.x, block.y + block.h * 0.14, block.z);
+      this.scene.add(line);
+      return;
+    }
+
+    if (block.kind === 'city-bus' || block.kind === 'city-car-cover') {
+      const windowStrip = new THREE.Mesh(
+        new THREE.BoxGeometry(block.w * 0.82, 0.42, 0.08),
+        darkGlass,
+      );
+      windowStrip.position.set(block.x, block.y + block.h * 0.18, block.z - block.d / 2 - 0.045);
+      this.scene.add(windowStrip);
+      return;
+    }
+
+    if (block.kind === 'city-rubble') {
+      for (let index = 0; index < 4; index += 1) {
+        const chunk = new THREE.Mesh(
+          new THREE.BoxGeometry(block.w * (0.18 + index * 0.03), 0.34, block.d * 0.34),
+          this.materialFor(block.kind),
+        );
+        chunk.position.set(
+          block.x - block.w * 0.32 + index * block.w * 0.2,
+          block.y + block.h / 2 + 0.18,
+          block.z + (index % 2 === 0 ? -0.7 : 0.7),
+        );
+        chunk.rotation.y = index * 0.35;
+        this.scene.add(chunk);
+      }
+      return;
+    }
+
+    if (block.kind === 'city-overpass') {
+      [-0.36, 0, 0.36].forEach((offset) => {
+        const lane = new THREE.Mesh(new THREE.BoxGeometry(block.w * 0.86, 0.04, 0.08), ashLine);
+        lane.position.set(block.x, block.y + block.h / 2 + 0.06, block.z + offset * block.d);
+        this.scene.add(lane);
+      });
+    }
+  }
+
   addFoundryBlockDetail(block) {
     const warning = new THREE.MeshBasicMaterial({ color: '#f5a524' });
     const molten = new THREE.MeshBasicMaterial({ color: '#ff5a1f' });
@@ -376,12 +456,20 @@ export class ArenaBuilder {
   materialFor(kind) {
     const theme = this.selectedMap.theme;
     if (theme === 'apocalyptic') {
+      const cityColors = {
+        'city-boundary': '#222832',
+        'city-building': '#3a3f45',
+        'city-bus': '#8a4f2a',
+        'city-car-cover': '#7b2f2f',
+        'city-rubble': '#5a5148',
+        'city-overpass': '#3c4148',
+        'city-rail': '#252a31',
+        'city-ramp': '#565d66',
+      };
       return new THREE.MeshStandardMaterial({
-        color: '#ff9f43',
-        transparent: true,
-        opacity: 0,
-        depthWrite: false,
-        roughness: 0.85,
+        color: cityColors[kind] || '#3b4148',
+        roughness: 0.86,
+        metalness: kind === 'city-bus' || kind === 'city-car-cover' || kind === 'city-rail' ? 0.2 : 0.08,
       });
     }
 
@@ -449,6 +537,10 @@ export class ArenaBuilder {
       this.addFoundryDetails();
     }
 
+    if (this.selectedMap.theme === 'apocalyptic') {
+      this.addApocalypticDetails();
+    }
+
     if (this.selectedMap.theme === 'lava') {
       const lava = new THREE.Mesh(
         new THREE.BoxGeometry(82, 0.25, 82),
@@ -496,6 +588,52 @@ export class ArenaBuilder {
       tree.add(trunk, crown);
       tree.position.set(-42, 0.1, 46);
       this.scene.add(tree);
+    }
+  }
+
+  addApocalypticDetails() {
+    const ash = new THREE.MeshBasicMaterial({ color: '#151a20', transparent: true, opacity: 0.34 });
+    const ember = new THREE.MeshBasicMaterial({ color: '#ff8a2a', transparent: true, opacity: 0.82 });
+    const steel = new THREE.MeshStandardMaterial({ color: '#2c333b', roughness: 0.82, metalness: 0.22 });
+
+    [
+      [-34, -18, 18, 0.08, 3],
+      [28, 18, 20, -0.1, 3.2],
+      [-4, 4, 30, 0.02, 3.4],
+      [40, -18, 14, 0.18, 2.8],
+    ].forEach(([x, z, length, rotation, width]) => {
+      const roadScar = new THREE.Mesh(new THREE.BoxGeometry(width, 0.05, length), ash);
+      roadScar.position.set(x, 0.035, z);
+      roadScar.rotation.y = rotation;
+      this.scene.add(roadScar);
+    });
+
+    [
+      [-52, -52],
+      [52, -52],
+      [-52, 52],
+      [52, 52],
+      [0, -38],
+      [0, 38],
+    ].forEach(([x, z]) => {
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.24, 6.2, 10), steel);
+      pole.position.set(x, 3.1, z);
+      pole.rotation.z = x < 0 ? -0.1 : 0.1;
+      const lamp = new THREE.PointLight(0xff8a2a, 1.1, 22, 1.8);
+      lamp.position.set(x, 5.9, z);
+      const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.34, 12, 8), ember);
+      bulb.position.copy(lamp.position);
+      this.scene.add(pole, lamp, bulb);
+    });
+
+    for (let index = 0; index < 32; index += 1) {
+      const spark = new THREE.Mesh(new THREE.SphereGeometry(0.06 + (index % 3) * 0.02, 8, 6), ember);
+      spark.position.set(
+        -42 + (index % 8) * 12,
+        0.3 + (index % 5) * 0.55,
+        -48 + Math.floor(index / 8) * 24,
+      );
+      this.scene.add(spark);
     }
   }
 

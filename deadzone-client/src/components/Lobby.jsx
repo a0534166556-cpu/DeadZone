@@ -135,6 +135,7 @@ function AuthenticationScreen({ accountStatus, authMode, credentials, handleAcco
 function MainMenu({
   accessoryIds,
   account,
+  accountStatus,
   claimMissionReward,
   grenadeSkinId,
   level,
@@ -166,6 +167,7 @@ function MainMenu({
           <button className="logout-command" onClick={signOut}>Logout</button>
         </div>
       </header>
+      <StatusBanner message={accountStatus} />
       <section className="main-menu">
         <CharacterPreview
           outfit={outfit}
@@ -220,6 +222,12 @@ function MissionBoard({ missions = [], onClaim, onReroll }) {
     </aside>
   );
 }
+
+function StatusBanner({ message }) {
+  if (!message) return null;
+  return <div className="menu-status-banner" role="status">{message}</div>;
+}
+
 function ProgressBadge({ level, levelProgress, xp }) {
   return (
     <div className="menu-progress-badge">
@@ -231,6 +239,7 @@ function ProgressBadge({ level, levelProgress, xp }) {
 }
 
 function SettingsScreen({
+  accountStatus,
   editingKeybind,
   keybinds,
   level,
@@ -247,6 +256,7 @@ function SettingsScreen({
         <ProgressBadge level={level} levelProgress={levelProgress} xp={xp} />
         <strong>Settings</strong>
       </header>
+      <StatusBanner message={accountStatus} />
       <section className="settings-screen">
         <div className="settings-card">
           <header>
@@ -277,6 +287,7 @@ function SettingsScreen({
 
 function PlayerScreen({
   accessoryIds,
+  accountStatus,
   buyOrEquipAccessory,
   buyOrEquipGrenadeSkin,
   buyOrEquipOutfit,
@@ -357,6 +368,7 @@ function PlayerScreen({
           <strong>🪙 {wallet}</strong>
         </div>
       </header>
+      <StatusBanner message={accountStatus} />
       <section className="player-customizer">
         <aside className="customizer-preview">
           <CharacterPreview accessories={accessories} outfit={outfit} weaponColor={weaponSkin.color} grenadeColor={grenadeSkin.color} variant="side" weaponId={weaponId} />
@@ -588,9 +600,11 @@ function PlayScreen({
               </button>
               <form
                 className="game-code-form"
-                onSubmit={(event) => {
+                onSubmit={async (event) => {
                   event.preventDefault();
-                  joinRoomByCode(gameCode);
+                  if (await joinRoomByCode(gameCode)) {
+                    setGameCode('');
+                  }
                 }}
               >
                 <label>

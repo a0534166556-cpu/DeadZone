@@ -813,7 +813,7 @@ export function useDeadzoneController() {
   const joinRoomByCode = async (code) => {
     if (!code.trim()) {
       setAccountStatus('Enter a game code.');
-      return;
+      return false;
     }
     try {
       const room = await findRoomByCode(code);
@@ -821,8 +821,10 @@ export function useDeadzoneController() {
       setRooms((items) => [normalizedRoom, ...items.filter((item) => item.id !== normalizedRoom.id)]);
       setSelectedRoomId(normalizedRoom.id);
       setAccountStatus(`Room ${normalizedRoom.id} selected.`);
+      return true;
     } catch (error) {
       setAccountStatus(error.message);
+      return false;
     }
   };
 

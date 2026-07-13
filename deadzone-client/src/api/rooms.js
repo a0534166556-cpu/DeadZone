@@ -3,19 +3,34 @@ import { apiBase } from './config';
 
 const API_BASE = apiBase('/api/rooms');
 
+async function errorMessage(response, fallback) {
+  const body = await response.text();
+  if (!body) return fallback;
+  try {
+    const parsed = JSON.parse(body);
+    return parsed.detail || parsed.message || parsed.error || fallback;
+  } catch {
+    return body;
+  }
+}
+
 async function request(path = '', options = {}) {
   const token = localStorage.getItem(sessionTokenKey);
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-      ...(options.headers || {}),
-    },
-  });
+  let response;
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(options.headers || {}),
+      },
+    });
+  } catch {
+    throw new Error('Cannot reach the room server. Check that the backend is online and try again.');
+  }
   if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || 'Room request failed.');
+    throw new Error(await errorMessage(response, 'Room request failed.'));
   }
   return response.json();
 }

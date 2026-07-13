@@ -3,18 +3,34 @@ import { sessionTokenKey } from './users';
 
 const API_BASE = apiBase('/api/social');
 
+async function errorMessage(response, fallback) {
+  const body = await response.text();
+  if (!body) return fallback;
+  try {
+    const parsed = JSON.parse(body);
+    return parsed.detail || parsed.message || parsed.error || fallback;
+  } catch {
+    return body;
+  }
+}
+
 async function request(path = '', options = {}) {
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${localStorage.getItem(sessionTokenKey)}`,
-      ...(options.headers || {}),
-    },
-  });
+  const token = localStorage.getItem(sessionTokenKey);
+  let response;
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(options.headers || {}),
+      },
+    });
+  } catch {
+    throw new Error('Cannot reach the social server. Check that the backend is online and try again.');
+  }
   if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || 'Social request failed.');
+    throw new Error(await errorMessage(response, 'Social request failed.'));
   }
   if (response.status === 204) return null;
   return response.json();

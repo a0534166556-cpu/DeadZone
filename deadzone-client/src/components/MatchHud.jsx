@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { CharacterPreview } from './CharacterPreview';
 import { StoreVisual } from './StoreVisual';
 import { MatchPauseMenu } from './MatchPauseMenu';
@@ -73,10 +73,24 @@ export function MatchHud({
   );
 
   const sniperScoped = isScoped && weaponId === 'sniper';
-  const setPaused = (value) => {
+  const setPaused = useCallback((value) => {
     setShowPauseMenu(value);
     worldRef.current?.setPaused(value);
-  };
+  }, [worldRef]);
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.code !== 'Escape' || deathInfo.isDead || matchResult) return;
+      event.preventDefault();
+      if (showExitConfirm) {
+        setShowExitConfirm(false);
+        return;
+      }
+      setPaused(!showPauseMenu);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [deathInfo.isDead, matchResult, setPaused, showExitConfirm, showPauseMenu]);
+
   const exitPausedMatch = () => {
     worldRef.current?.setPaused(false);
     setShowPauseMenu(false);

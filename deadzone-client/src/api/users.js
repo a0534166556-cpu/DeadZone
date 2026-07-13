@@ -21,7 +21,7 @@ async function request(path, options = {}) {
       },
     });
   } catch (error) {
-    throw new Error(`Cannot reach the server at ${API_BASE}. Start the backend on port 8080 and try again.`);
+    throw new Error(`Cannot reach the server at ${API_BASE}. Check that the backend is online and try again.`, { cause: error });
   }
 
   if (!response.ok) {
